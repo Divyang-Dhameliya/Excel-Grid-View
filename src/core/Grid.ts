@@ -23,25 +23,23 @@ export class Grid {
     private initialize(): void {
 
         this.resizeCanvas();
-
         window.addEventListener("resize", () => this.resizeCanvas());
-
+    
     }
 
     private resizeCanvas(): void {
-
+    
         this.canvas.width = window.innerWidth;
-
         this.canvas.height = window.innerHeight;
-
+    
         this.render();
-
     }
 
     private render(): void {
-
+    
         this.renderer.clear(this.canvas.width, this.canvas.height);
-
+        this.renderer.drawGrid(this.canvas.width, this.canvas.height);
+    
     }
 
 }
