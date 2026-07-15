@@ -321,13 +321,13 @@ extent), selecting a single cell costs O(1), and even a full-column selection ov
 | 1 | Data loading | 50,000 records load on startup | Open the app | `DataStore.getRowCount()` returns 50000; grid scrolls through all of them | Pass |
 | 2 | Data loading | Missing field in a row | Load a row object missing e.g. `salary` | `getCell` for that cell returns `""` instead of throwing | Pass (`?? ""` fallback in `getCell`) |
 | 3 | Data loading | Non-numeric value in a numeric-looking column | Row has `age: "N/A"` | Cell renders the raw text; summary calc skips it (`Number("N/A")` is `NaN`) | Pass |
-| 4 | Editing | Edit a cell beyond loaded columns (e.g. column F) | Double-click a cell in column F+, type a value, press Enter | Currently: value does not persist | Known limitation (documented in section 13) |
+| 4 | Editing | Edit a cell beyond loaded columns (e.g. column F) | Double-click a cell in column F+, type a value, press Enter | Currently: value does not persist | Known limitation |
 | 5 | Editing | Edit a normal text cell | Double-click "firstname" cell, replace text, Enter | New value shown immediately; `DataStore` updated | Pass |
 | 6 | Editing | Edit and undo | Edit a cell, press Ctrl+Z | Cell reverts to its previous value | Pass |
 | 7 | Editing | Edit and redo | After undo above, press Ctrl+Y | Cell re-applies the edited value | Pass |
 | 8 | Editing | Escape cancels an in-progress edit | Double-click a cell, type text, press Escape | Input closes, original value unchanged, no command pushed | Pass |
 | 9 | Editing | Commit an edit identical to the original value | Double-click a cell, press Enter without changing text | No `EditCellCommand` pushed to the undo stack | Pass |
-| 10 | Resizing | Resize a column to a larger size | Drag a column header border right by 60px | Column widens by exactly 60px; subsequent columns shift right | Pass (pixel-exact, automated) |
+| 10 | Resizing | Resize a column to a larger size | Drag a column header border right by 60px | Column widens by exactly 60px; subsequent columns shift right | Pass |
 | 11 | Resizing | Resize a column to the minimum size | Drag a column border far left | Width clamps at `MIN_COLUMN_WIDTH` (30px), never smaller | Pass |
 | 12 | Resizing | Resize and undo | Resize a column, press Ctrl+Z | Column returns to its exact original width | Pass |
 | 13 | Resizing | Resize and redo | After undo above, press Ctrl+Y | Column re-applies the resized width | Pass |
@@ -347,7 +347,7 @@ extent), selecting a single cell costs O(1), and even a full-column selection ov
 | 27 | Performance | Scroll to near the last column (column ~499) | Scroll wheel right repeatedly | Grid remains responsive | Pass |
 | 28 | Keyboard | Arrow key navigation | Click a cell, press arrow keys | Active cell moves one cell per press, clamped at grid edges | Pass |
 | 29 | Keyboard | Ctrl+Z / Ctrl+Y with empty stacks | Press Ctrl+Z with no prior actions | No error, no-op | Pass |
-| 30 | Error handling | Interleaved undo/redo across different command types | Edit a cell, resize a column, edit another cell, then Ctrl+Z x3, then Ctrl+Y x3 | All three actions undo/redo in the correct chronological order | Pass (verified via automated screenshots) |
+| 30 | Error handling | Interleaved undo/redo across different command types | Edit a cell, resize a column, edit another cell, then Ctrl+Z x3, then Ctrl+Y x3 | All three actions undo/redo in the correct chronological order | Pass |
 
 ---
 
