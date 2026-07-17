@@ -315,7 +315,7 @@ export class Grid {
 
         });
 
-        this.canvas.addEventListener("mousedown", (event: MouseEvent) => {
+        this.canvas.addEventListener("pointerdown", (event: MouseEvent) => {
 
             const { x, y } = this.getRelativeMouse(event);
 
@@ -404,7 +404,7 @@ export class Grid {
             this.updateSummary();
         });
 
-        this.canvas.addEventListener("mousemove", (event: MouseEvent) => {
+        this.canvas.addEventListener("pointermove", (event: MouseEvent) => {
 
             const { x, y } = this.getRelativeMouse(event);
 
@@ -468,7 +468,7 @@ export class Grid {
             this.updateHoverCursor(x, y);
         });
 
-        window.addEventListener("mouseup", () => {
+        const onPointerRelease = () => {
 
             if (this.resizingColumn !== null) {
 
@@ -523,7 +523,11 @@ export class Grid {
             this.isDraggingCellSelection = false;
             this.isDraggingRowSelection = false;
             this.isDraggingColumnSelection = false;
-        });
+        };
+
+        window.addEventListener("pointerup", onPointerRelease);
+
+        window.addEventListener("pointercancel", onPointerRelease);
 
         this.canvas.addEventListener("keydown", (event: KeyboardEvent) => {
 
