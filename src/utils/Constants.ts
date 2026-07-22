@@ -1,6 +1,6 @@
-export const TOTAL_ROWS = 10;
+export const TOTAL_ROWS = 100000;
 
-export const TOTAL_COLUMNS = 5;
+export const TOTAL_COLUMNS = 500;
 
 export const ROW_HEIGHT = 25;
 

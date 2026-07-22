@@ -13,16 +13,18 @@ import { Editor } from "./Editor.js";
 import { GridDimensions } from "./GridDimensions.js";
 import { CommandManager } from "../commands/CommandManager.js";
 import { EditCellCommand } from "../commands/EditCellCommand.js";
-import { ResizeColumnCommand } from "../commands/ResizeColumnCommand.js";
-import { ResizeRowCommand } from "../commands/ResizeRowCommand.js";
 import { SummaryBar } from "./SummaryBar.js";
 import { SummaryCalculator } from "./SummaryCalculator.js";
+import { InteractionManager } from "./InteractionManager.js";
+import { HitResult } from "./types.js";
 
 export class Grid {
 
     private context: CanvasRenderingContext2D;
 
     private renderer: CanvasRenderer;
+
+    private interactionManager: InteractionManager;
 
     private dimensions: GridDimensions;
 
@@ -56,6 +58,7 @@ export class Grid {
         this.viewport = new Viewport(this.dimensions);
         this.dataStore = new DataStore();
         this.selectionManager = new SelectionManager();
+        this.interactionManager = new InteractionManager(this);
         this.editor = new Editor();
         this.commandManager = new CommandManager();
         this.summaryBar = new SummaryBar();
@@ -82,7 +85,6 @@ export class Grid {
         }
 
         this.dataStore.load(rows);
-        console.log("count :", this.dataStore.getRowCount());
         this.initialize();
     }
 
@@ -91,8 +93,6 @@ export class Grid {
         this.resizeCanvas();
 
         this.registerEvents();
-
-        window.addEventListener("resize", () => this.resizeCanvas());
 
         this.canvas.tabIndex = 0;
     }
@@ -249,7 +249,7 @@ export class Grid {
         }
     }
 
-    private getRelativeMouse(event: MouseEvent): { x: number; y: number } {
+    private getRelativeMouse(event: PointerEvent): { x: number; y: number } {
 
         const rect = this.canvas.getBoundingClientRect();
 
@@ -268,6 +268,60 @@ export class Grid {
         const row = Math.max(0, Math.min(this.dimensions.getRowAtY(gridY), TOTAL_ROWS - 1));
 
         return { row, column };
+    }
+
+    public hitTest(event: PointerEvent): HitResult {
+        const { x, y } = this.getRelativeMouse(event);
+
+        const result: HitResult = {
+            region: 'cell-select',
+            row: -1,
+            col: -1,
+            handleIndex: null
+        };
+
+        // Top-Left Corner Area Check
+        if (x < ROW_HEADER_WIDTH && y < COLUMN_HEADER_HEIGHT) {
+            result.region = 'corner-ignore';
+            return result;
+        }
+
+        // Column Header Zone
+        if (y < COLUMN_HEADER_HEIGHT && x >= ROW_HEADER_WIDTH) {
+            const gridX = x - ROW_HEADER_WIDTH + this.viewport.getScrollX();
+            const handle = this.dimensions.findColumnResizeHandle(gridX, RESIZE_HANDLE_THRESHOLD);
+
+            if (handle !== null) {
+                result.region = 'col-resize';
+                result.handleIndex = handle;
+            } else {
+                result.region = 'col-select';
+                result.col = Math.max(0, Math.min(this.dimensions.getColumnAtX(gridX), TOTAL_COLUMNS - 1));
+            }
+            return result;
+        }
+
+        // Row Header Zone
+        if (x < ROW_HEADER_WIDTH && y >= COLUMN_HEADER_HEIGHT) {
+            const gridY = y - COLUMN_HEADER_HEIGHT + this.viewport.getScrollY();
+            const handle = this.dimensions.findRowResizeHandle(gridY, RESIZE_HANDLE_THRESHOLD);
+
+            if (handle !== null) {
+                result.region = 'row-resize';
+                result.handleIndex = handle;
+            } else {
+                result.region = 'row-select';
+                result.row = Math.max(0, Math.min(this.dimensions.getRowAtY(gridY), TOTAL_ROWS - 1));
+            }
+            return result;
+        }
+
+        // Fallback Standard Data Grid Cell Zone
+        const { row, column } = this.hitTestCell(x, y);
+        result.region = 'cell-select';
+        result.row = row;
+        result.col = column;
+        return result;
     }
 
     private updateHoverCursor(x: number, y: number): void {
@@ -315,219 +369,17 @@ export class Grid {
 
         });
 
-        this.canvas.addEventListener("pointerdown", (event: MouseEvent) => {
-
-            const { x, y } = this.getRelativeMouse(event);
-
-            // --- Column header: resize handle or column selection ---
-            if (y < COLUMN_HEADER_HEIGHT && x >= ROW_HEADER_WIDTH) {
-
-                const gridX = x - ROW_HEADER_WIDTH + this.viewport.getScrollX();
-
-                const handle = this.dimensions.findColumnResizeHandle(gridX, RESIZE_HANDLE_THRESHOLD);
-
-                this.canvas.focus();
-                this.finishEditing();
-
-                if (handle !== null) {
-                    this.resizingColumn = handle;
-                    this.resizeStartX = event.clientX;
-                    this.resizeStartWidth = this.dimensions.getColumnWidth(handle);
-                    return;
-                }
-
-                const column = Math.max(0, Math.min(this.dimensions.getColumnAtX(gridX), TOTAL_COLUMNS - 1));
-
-                if (event.shiftKey) {
-                    this.selectionManager.extendColumnTo(column);
-                } else {
-                    this.selectionManager.selectColumn(column);
-                }
-
-                this.isDraggingColumnSelection = true;
-
-                this.render();
-                this.updateSummary();
-                return;
-            }
-
-            if (x < ROW_HEADER_WIDTH && y >= COLUMN_HEADER_HEIGHT) {
-
-                const gridY = y - COLUMN_HEADER_HEIGHT + this.viewport.getScrollY();
-
-                const handle = this.dimensions.findRowResizeHandle(gridY, RESIZE_HANDLE_THRESHOLD);
-
-                this.canvas.focus();
-                this.finishEditing();
-
-                if (handle !== null) {
-                    this.resizingRow = handle;
-                    this.resizeStartY = event.clientY;
-                    this.resizeStartHeight = this.dimensions.getRowHeight(handle);
-                    return;
-                }
-
-                const row = Math.max(0, Math.min(this.dimensions.getRowAtY(gridY), TOTAL_ROWS - 1));
-
-                if (event.shiftKey) {
-                    this.selectionManager.extendRowTo(row);
-                } else {
-                    this.selectionManager.selectRow(row);
-                }
-
-                this.isDraggingRowSelection = true;
-
-                this.render();
-                this.updateSummary();
-                return;
-            }
-
-            if (x < ROW_HEADER_WIDTH && y < COLUMN_HEADER_HEIGHT) {
-                return;
-            }
-
-            const { row, column } = this.hitTestCell(x, y);
-
-            this.canvas.focus();
-
-            this.finishEditing();
-
-            if (event.shiftKey) {
-                this.selectionManager.extendTo(row, column);
-            } else {
-                this.selectionManager.selectCell(row, column);
-            }
-
-            this.isDraggingCellSelection = true;
-
-            this.render();
-            this.updateSummary();
+        this.canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+            this.interactionManager.handlePointerDown(e);
         });
 
-        this.canvas.addEventListener("pointermove", (event: MouseEvent) => {
-
-            const { x, y } = this.getRelativeMouse(event);
-
-            if (this.resizingColumn !== null) {
-
-                const delta = event.clientX - this.resizeStartX;
-
-                this.dimensions.setColumnWidth(this.resizingColumn, this.resizeStartWidth + delta);
-
-                this.clampScrollToContent();
-                this.render();
-                return;
-            }
-
-            if (this.resizingRow !== null) {
-
-                const delta = event.clientY - this.resizeStartY;
-
-                this.dimensions.setRowHeight(this.resizingRow, this.resizeStartHeight + delta);
-
-                this.clampScrollToContent();
-                this.render();
-                return;
-            }
-
-            if (this.isDraggingCellSelection) {
-
-                const { row, column } = this.hitTestCell(x, y);
-
-                this.selectionManager.extendTo(row, column);
-
-                this.render();
-                this.updateSummary();
-                return;
-            }
-
-            if (this.isDraggingRowSelection) {
-
-                const gridY = y - COLUMN_HEADER_HEIGHT + this.viewport.getScrollY();
-                const row = Math.max(0, Math.min(this.dimensions.getRowAtY(gridY), TOTAL_ROWS - 1));
-
-                this.selectionManager.extendRowTo(row);
-
-                this.render();
-                this.updateSummary();
-                return;
-            }
-
-            if (this.isDraggingColumnSelection) {
-
-                const gridX = x - ROW_HEADER_WIDTH + this.viewport.getScrollX();
-                const column = Math.max(0, Math.min(this.dimensions.getColumnAtX(gridX), TOTAL_COLUMNS - 1));
-
-                this.selectionManager.extendColumnTo(column);
-
-                this.render();
-                this.updateSummary();
-                return;
-            }
-
-            this.updateHoverCursor(x, y);
+        this.canvas.addEventListener('pointermove', (e: PointerEvent) => {
+            this.interactionManager.handlePointerMove(e);
         });
 
-        const onPointerRelease = () => {
-
-            if (this.resizingColumn !== null) {
-
-                const column = this.resizingColumn;
-                const oldWidth = this.resizeStartWidth;
-                const newWidth = this.dimensions.getColumnWidth(column);
-
-                this.resizingColumn = null;
-
-                if (newWidth !== oldWidth) {
-
-                    this.commandManager.execute(
-                        new ResizeColumnCommand(
-                            this.dimensions,
-                            column,
-                            oldWidth,
-                            newWidth,
-                            () => {
-                                this.clampScrollToContent();
-                                this.render();
-                            }
-                        )
-                    );
-                }
-            }
-
-            if (this.resizingRow !== null) {
-
-                const row = this.resizingRow;
-                const oldHeight = this.resizeStartHeight;
-                const newHeight = this.dimensions.getRowHeight(row);
-
-                this.resizingRow = null;
-
-                if (newHeight !== oldHeight) {
-
-                    this.commandManager.execute(
-                        new ResizeRowCommand(
-                            this.dimensions,
-                            row,
-                            oldHeight,
-                            newHeight,
-                            () => {
-                                this.clampScrollToContent();
-                                this.render();
-                            }
-                        )
-                    );
-                }
-            }
-
-            this.isDraggingCellSelection = false;
-            this.isDraggingRowSelection = false;
-            this.isDraggingColumnSelection = false;
-        };
-
-        window.addEventListener("pointerup", onPointerRelease);
-
-        window.addEventListener("pointercancel", onPointerRelease);
+        const handleRelease = (e: PointerEvent) => this.interactionManager.handlePointerUp(e);
+        window.addEventListener("pointerup", handleRelease);
+        window.addEventListener("pointercancel", handleRelease);
 
         this.canvas.addEventListener("keydown", (event: KeyboardEvent) => {
 
@@ -625,5 +477,7 @@ export class Grid {
                 this.cancelEdit();
             }
         });
+
+        window.addEventListener("resize", () => this.resizeCanvas());
     }
 }
